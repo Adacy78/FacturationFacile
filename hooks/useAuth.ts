@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, checkSupabaseConnection } from '@/lib/supabase';
 import { Database } from '@/types/database';
 
 export function useAuth() {
@@ -9,9 +9,13 @@ export function useAuth() {
   const [userProfile, setUserProfile] = useState<Database['public']['Tables']['users']['Row'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    
+    // Vérifier la connexion Supabase
+    checkSupabaseConnection().then(setIsOnline);
     
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -71,6 +75,13 @@ export function useAuth() {
   };
 
   const signIn = async (email: string, password: string) => {
+    if (!isOnline) {
+      return { 
+        data: null, 
+        error: new Error('Connexion Supabase non disponible. Vérifiez votre configuration.') 
+      };
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -79,6 +90,13 @@ export function useAuth() {
   };
 
   const signUp = async (email: string, password: string) => {
+    if (!isOnline) {
+      return { 
+        data: null, 
+        error: new Error('Connexion Supabase non disponible. Vérifiez votre configuration.') 
+      };
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -116,6 +134,16 @@ export function useAuth() {
   };
 
   const signOut = async () => {
+    if (!isOnline) {
+      // Permettre la déconnexion locale même hors ligne
+      if (mounted) {
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+      }
+      return { error: null };
+    }
+
     const { error } = await supabase.auth.signOut();
     if (!error && mounted) {
       setUserProfile(null);
@@ -128,6 +156,7 @@ export function useAuth() {
     user,
     userProfile,
     loading,
+    isOnline,
     signIn,
     signUp,
     signOut,
