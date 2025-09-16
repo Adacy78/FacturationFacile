@@ -8,36 +8,48 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<Database['public']['Tables']['users']['Row'] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
+      if (mounted) {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          fetchUserProfile(session.user.id);
+        }
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      } else {
-        setUserProfile(null);
+      if (mounted) {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          fetchUserProfile(session.user.id);
+        } else {
+          setUserProfile(null);
+        }
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      subscription.unsubscribe();
+      setMounted(false);
+    };
+  }, [mounted]);
 
   const fetchUserProfile = async (userId: string) => {
+    if (!mounted) return;
+    
     try {
       const { data, error } = await supabase
         .from('users')
@@ -50,7 +62,9 @@ export function useAuth() {
         return;
       }
 
-      setUserProfile(data);
+      if (mounted) {
+        setUserProfile(data);
+      }
     } catch (error) {
       console.error('Error fetching user profile:', error);
     }
@@ -103,7 +117,7 @@ export function useAuth() {
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
-    if (!error) {
+    if (!error && mounted) {
       setUserProfile(null);
     }
     return { error };
