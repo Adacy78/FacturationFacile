@@ -857,6 +857,7 @@ export default function SettingsScreen() {
       />
     </SafeAreaView>
   );
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -1382,4 +1383,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-}
