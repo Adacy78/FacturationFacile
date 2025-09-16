@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Switch, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Switch, Alert, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Building2, CreditCard, Bell, FileText, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, User, Mail, Phone, MapPin, Download, Upload, Globe, X, Camera, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Info } from 'lucide-react-native';
+import { Building2, CreditCard, Bell, FileText, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, User, Mail, Phone, MapPin, Download, Upload, Globe, X, Camera, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Info, Edit3, Sparkles, Zap, Star } from 'lucide-react-native';
 import { useCompany } from '@/hooks/useCompany';
 import { useAuth } from '@/hooks/useAuth';
 import { useStripe } from '@/hooks/useStripe';
 import * as WebBrowser from 'expo-web-browser';
+import * as ImagePicker from 'expo-image-picker';
 
 const SettingsSection = ({ title, children }: any) => (
   <View style={styles.section}>
@@ -30,21 +31,399 @@ const SettingsItem = ({ icon: Icon, title, subtitle, onPress, rightElement, icon
   </TouchableOpacity>
 );
 
+const CompanyEditModal = ({ visible, onClose, company, onSave }: any) => {
+  const [formData, setFormData] = useState({
+    name: company?.name || '',
+    siren: company?.siren || '',
+    vat_number: company?.vat_number || '',
+    email: company?.email || '',
+    phone: company?.phone || '',
+    address: company?.address || '',
+    city: company?.city || '',
+    postal_code: company?.postal_code || '',
+    country: company?.country || 'FR',
+    website: company?.website || '',
+    business_type: company?.business_type || '',
+    legal_form: company?.legal_form || '',
+    logo: null,
+  });
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setFormData({ ...formData, logo: result.assets[0].uri });
+    }
+  };
+
+  const handleSave = () => {
+    if (!formData.name || !formData.siren || !formData.email || !formData.address || !formData.city || !formData.postal_code) {
+      Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+    onSave(formData);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <X size={24} color="#6b7280" />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>
+            {company ? 'Modifier ma société' : 'Créer ma société'}
+          </Text>
+          <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
+            <Text style={styles.saveButtonText}>Enregistrer</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.modalContent}>
+          {/* Logo Section */}
+          <View style={styles.formSection}>
+            <Text style={styles.sectionTitle}>Logo de société</Text>
+            <TouchableOpacity style={styles.logoContainer} onPress={pickImage}>
+              {formData.logo ? (
+                <Image source={{ uri: formData.logo }} style={styles.logoImage} />
+              ) : (
+                <View style={styles.logoPlaceholder}>
+                  <Camera size={32} color="#6b7280" />
+                  <Text style={styles.logoText}>Ajouter un logo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Informations générales */}
+          <View style={styles.formSection}>
+            <Text style={styles.sectionTitle}>Informations générales</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Nom de la société *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.name}
+                onChangeText={(text) => setFormData({...formData, name: text})}
+                placeholder="Ex: ACME Corporation"
+              />
+            </View>
+
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>SIREN *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.siren}
+                  onChangeText={(text) => setFormData({...formData, siren: text})}
+                  placeholder="123456789"
+                  maxLength={9}
+                  keyboardType="numeric"
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>N° TVA</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.vat_number}
+                  onChangeText={(text) => setFormData({...formData, vat_number: text})}
+                  placeholder="FR12123456789"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Forme juridique</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.legal_form}
+                  onChangeText={(text) => setFormData({...formData, legal_form: text})}
+                  placeholder="SARL, SAS, EURL..."
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Secteur d'activité</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.business_type}
+                  onChangeText={(text) => setFormData({...formData, business_type: text})}
+                  placeholder="Services, Commerce..."
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* Contact */}
+          <View style={styles.formSection}>
+            <Text style={styles.sectionTitle}>Contact</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.email}
+                onChangeText={(text) => setFormData({...formData, email: text})}
+                placeholder="contact@acme.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Téléphone</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.phone}
+                  onChangeText={(text) => setFormData({...formData, phone: text})}
+                  placeholder="+33 1 23 45 67 89"
+                  keyboardType="phone-pad"
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Site web</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.website}
+                  onChangeText={(text) => setFormData({...formData, website: text})}
+                  placeholder="www.acme.com"
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* Adresse */}
+          <View style={styles.formSection}>
+            <Text style={styles.sectionTitle}>Adresse</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Adresse *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.address}
+                onChangeText={(text) => setFormData({...formData, address: text})}
+                placeholder="123 Rue de la Paix"
+              />
+            </View>
+
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Ville *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.city}
+                  onChangeText={(text) => setFormData({...formData, city: text})}
+                  placeholder="Paris"
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Code postal *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.postal_code}
+                  onChangeText={(text) => setFormData({...formData, postal_code: text})}
+                  placeholder="75001"
+                  keyboardType="numeric"
+                  maxLength={5}
+                />
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+};
+
+const StripeConnectModal = ({ visible, onClose, company, onCreateAccount }: any) => {
+  const isCompanyComplete = company && 
+    company.name && 
+    company.siren && 
+    company.email && 
+    company.address && 
+    company.city && 
+    company.postal_code;
+
+  const requirements = [
+    { label: 'Nom de société', completed: !!company?.name },
+    { label: 'SIREN', completed: !!company?.siren },
+    { label: 'Email', completed: !!company?.email },
+    { label: 'Adresse complète', completed: !!(company?.address && company?.city && company?.postal_code) },
+  ];
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.stripeModalContainer}>
+          <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
+            <X size={24} color="#6b7280" />
+          </TouchableOpacity>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Header avec animation */}
+            <View style={styles.stripeHeader}>
+              <View style={styles.stripeIconContainer}>
+                <Sparkles size={32} color="#635bff" />
+              </View>
+              <Text style={styles.stripeTitle}>Stripe Connect</Text>
+              <Text style={styles.stripeSubtitle}>
+                Acceptez les paiements en ligne de vos clients
+              </Text>
+            </View>
+
+            {/* Card d'information */}
+            <View style={styles.infoCard}>
+              <View style={styles.infoHeader}>
+                <Info size={20} color="#2563eb" />
+                <Text style={styles.infoTitle}>Avant de commencer</Text>
+              </View>
+              <Text style={styles.infoText}>
+                Assurez-vous que les informations de votre société sont complètes et exactes. 
+                Elles seront utilisées pour créer votre compte Stripe.
+              </Text>
+            </View>
+
+            {/* Vérification des prérequis */}
+            <View style={styles.requirementsCard}>
+              <Text style={styles.requirementsTitle}>Informations requises</Text>
+              {requirements.map((req, index) => (
+                <View key={index} style={styles.requirementItem}>
+                  {req.completed ? (
+                    <CheckCircle size={20} color="#059669" />
+                  ) : (
+                    <AlertCircle size={20} color="#dc2626" />
+                  )}
+                  <Text style={[
+                    styles.requirementText,
+                    { color: req.completed ? '#059669' : '#dc2626' }
+                  ]}>
+                    {req.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Avertissement si incomplet */}
+            {!isCompanyComplete && (
+              <View style={styles.warningCard}>
+                <AlertCircle size={20} color="#f59e0b" />
+                <View style={styles.warningContent}>
+                  <Text style={styles.warningTitle}>Informations incomplètes</Text>
+                  <Text style={styles.warningText}>
+                    Veuillez compléter les informations de votre société avant de créer un compte Stripe.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Avantages Stripe */}
+            <View style={styles.benefitsCard}>
+              <View style={styles.benefitsHeader}>
+                <Star size={20} color="#059669" />
+                <Text style={styles.benefitsTitle}>Avantages Stripe</Text>
+              </View>
+              <View style={styles.benefitsList}>
+                <View style={styles.benefitItem}>
+                  <Zap size={16} color="#059669" />
+                  <Text style={styles.benefitText}>Paiements instantanés</Text>
+                </View>
+                <View style={styles.benefitItem}>
+                  <Shield size={16} color="#059669" />
+                  <Text style={styles.benefitText}>Sécurité maximale</Text>
+                </View>
+                <View style={styles.benefitItem}>
+                  <Globe size={16} color="#059669" />
+                  <Text style={styles.benefitText}>Accepter toutes les cartes</Text>
+                </View>
+                <View style={styles.benefitItem}>
+                  <FileText size={16} color="#059669" />
+                  <Text style={styles.benefitText}>Facturation automatique</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Boutons d'action */}
+            <View style={styles.stripeActions}>
+              <TouchableOpacity
+                style={[
+                  styles.createAccountButton,
+                  !isCompanyComplete && styles.createAccountButtonDisabled
+                ]}
+                onPress={onCreateAccount}
+                disabled={!isCompanyComplete}
+              >
+                <CreditCard size={20} color="#ffffff" />
+                <Text style={styles.createAccountButtonText}>
+                  Créer mon compte Stripe
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+                <Text style={styles.cancelButtonText}>Plus tard</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 const ProfileSection = () => {
-  const { company } = useCompany();
+  const { company, createCompany, updateCompany } = useCompany();
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  const handleSaveCompany = async (formData: any) => {
+    try {
+      if (company) {
+        await updateCompany(formData);
+      } else {
+        await createCompany(formData);
+      }
+      Alert.alert('Succès', 'Informations sauvegardées avec succès');
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de sauvegarder les informations');
+    }
+  };
 
   if (!company) {
     return (
       <SettingsSection title="Informations société">
         <View style={styles.profileCard}>
-          <Text style={styles.noCompanyText}>
-            Aucune société configurée. Veuillez créer votre profil société.
-          </Text>
-          <TouchableOpacity style={styles.editButton}>
-            <User size={16} color="#2563eb" />
-            <Text style={styles.editButtonText}>Créer ma société</Text>
-          </TouchableOpacity>
+          <View style={styles.noCompanyContainer}>
+            <Building2 size={48} color="#d1d5db" />
+            <Text style={styles.noCompanyTitle}>Aucune société configurée</Text>
+            <Text style={styles.noCompanyText}>
+              Créez votre profil société pour commencer à utiliser toutes les fonctionnalités.
+            </Text>
+            <TouchableOpacity 
+              style={styles.createCompanyButton}
+              onPress={() => setShowEditModal(true)}
+            >
+              <User size={16} color="#ffffff" />
+              <Text style={styles.createCompanyButtonText}>Créer ma société</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        <CompanyEditModal
+          visible={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          company={null}
+          onSave={handleSaveCompany}
+        />
       </SettingsSection>
     );
   }
@@ -60,6 +439,12 @@ const ProfileSection = () => {
             <Text style={styles.companyName}>{company.name}</Text>
             <Text style={styles.companySiren}>SIREN: {company.siren}</Text>
           </View>
+          <TouchableOpacity 
+            style={styles.editIconButton}
+            onPress={() => setShowEditModal(true)}
+          >
+            <Edit3 size={20} color="#2563eb" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.profileDetails}>
@@ -89,11 +474,21 @@ const ProfileSection = () => {
           )}
         </View>
 
-        <TouchableOpacity style={styles.editButton}>
-          <User size={16} color="#2563eb" />
+        <TouchableOpacity 
+          style={styles.editButton}
+          onPress={() => setShowEditModal(true)}
+        >
+          <Edit3 size={16} color="#2563eb" />
           <Text style={styles.editButtonText}>Modifier les informations</Text>
         </TouchableOpacity>
       </View>
+
+      <CompanyEditModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        company={company}
+        onSave={handleSaveCompany}
+      />
     </SettingsSection>
   );
 };
@@ -162,7 +557,8 @@ const NotificationSettings = () => {
 export default function SettingsScreen() {
   const { signOut, user, userProfile } = useAuth();
   const { company } = useCompany();
-  const { loading: stripeLoading, createStripeAccount, createAccountLink, getAccountStatus, updateStripeConnectionStatus } = useStripe();
+  const { loading: stripeLoading, createStripeAccount, createAccountLink, getAccountStatus } = useStripe();
+  const [showStripeModal, setShowStripeModal] = useState(false);
 
   const handleStripeConnect = async () => {
     if (!company) {
@@ -212,19 +608,14 @@ export default function SettingsScreen() {
         ]
       );
     } else {
-      // Nouveau compte à créer
-      Alert.alert(
-        'Créer un compte Stripe',
-        'Vous allez créer un compte Stripe Connect pour accepter les paiements. Cette opération est gratuite.',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Créer le compte', onPress: createNewStripeAccount }
-        ]
-      );
+      // Nouveau compte à créer - Afficher la modal stylée
+      setShowStripeModal(true);
     }
   };
 
-  const createNewStripeAccount = async () => {
+  const handleCreateStripeAccount = async () => {
+    setShowStripeModal(false);
+    
     try {
       const result = await createStripeAccount();
       
@@ -247,14 +638,12 @@ export default function SettingsScreen() {
     try {
       const result = await createAccountLink(
         accountId,
-        'https://your-app.com/stripe/success', // URL de retour après succès
-        'https://your-app.com/stripe/refresh'  // URL de rafraîchissement
+        'https://your-app.com/stripe/success',
+        'https://your-app.com/stripe/refresh'
       );
       
-      // Ouvrir le lien d'onboarding dans le navigateur
       await WebBrowser.openBrowserAsync(result.url);
       
-      // Optionnel: Vérifier le statut après que l'utilisateur revienne
       Alert.alert(
         'Configuration en cours',
         'Une fois la configuration terminée sur Stripe, revenez dans l\'application pour vérifier le statut.'
@@ -459,6 +848,13 @@ export default function SettingsScreen() {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      <StripeConnectModal
+        visible={showStripeModal}
+        onClose={() => setShowStripeModal(false)}
+        company={company}
+        onCreateAccount={handleCreateStripeAccount}
+      />
     </SafeAreaView>
   );
 }
@@ -572,6 +968,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b7280',
   },
+  editIconButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#eff6ff',
+  },
   profileDetails: {
     gap: 8,
     marginBottom: 16,
@@ -602,12 +1003,37 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2563eb',
   },
+  noCompanyContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  noCompanyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+    marginBottom: 8,
+  },
   noCompanyText: {
     fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
     lineHeight: 20,
+  },
+  createCompanyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  createCompanyButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   userCard: {
     backgroundColor: '#ffffff',
@@ -672,5 +1098,288 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 32,
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  saveButton: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  saveButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  formSection: {
+    marginTop: 24,
+  },
+  inputGroup: {
+    marginBottom: 16,
+    flex: 1,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  textInput: {
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#111827',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+  },
+  logoPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+  },
+  logoText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  // Stripe Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  stripeModalContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 24,
+    maxWidth: 400,
+    width: '100%',
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 1,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+  },
+  stripeHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  stripeIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#f0f0ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  stripeTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  stripeSubtitle: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  infoCard: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2563eb',
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e40af',
+    marginLeft: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#1e40af',
+    lineHeight: 20,
+  },
+  requirementsCard: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  requirementsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
+  },
+  requirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  requirementText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  warningCard: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+  },
+  warningContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 4,
+  },
+  warningText: {
+    fontSize: 13,
+    color: '#92400e',
+    lineHeight: 18,
+  },
+  benefitsCard: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: '#059669',
+  },
+  benefitsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  benefitsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#065f46',
+    marginLeft: 8,
+  },
+  benefitsList: {
+    gap: 8,
+  },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  benefitText: {
+    fontSize: 14,
+    color: '#065f46',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  stripeActions: {
+    gap: 12,
+  },
+  createAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#635bff',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#635bff',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  createAccountButtonDisabled: {
+    backgroundColor: '#d1d5db',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  createAccountButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  cancelButtonText: {
+    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
