@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Building2, CreditCard, Bell, FileText, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, User, Mail, Phone, MapPin, Download, Upload, Globe } from 'lucide-react-native';
 
 const SettingsSection = ({ title, children }: any) => (
@@ -188,7 +189,32 @@ export default function SettingsScreen() {
       'Êtes-vous sûr de vouloir vous déconnecter ?',
       [
         { text: 'Annuler', style: 'cancel' },
-        { text: 'Déconnecter', style: 'destructive', onPress: () => console.log('Logout') }
+        { 
+          text: 'Déconnecter', 
+          style: 'destructive', 
+          onPress: () => {
+            // Ici vous pourrez ajouter la logique de déconnexion Supabase
+            // Par exemple: await supabase.auth.signOut()
+            
+            // Pour l'instant, on simule la déconnexion en redirigeant vers l'écran de connexion
+            Alert.alert(
+              'Déconnecté',
+              'Vous avez été déconnecté avec succès',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    // Redirection vers un écran de connexion (à créer)
+                    // router.replace('/login');
+                    
+                    // Pour l'instant, on reste sur l'écran actuel avec un message
+                    console.log('Utilisateur déconnecté - Redirection vers écran de connexion à implémenter');
+                  }
+                }
+              ]
+            );
+          }
+        }
       ]
     );
   };
