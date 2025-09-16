@@ -158,7 +158,7 @@ const NotificationSettings = () => {
 };
 
 export default function SettingsScreen() {
-  const { signOut } = useAuth();
+  const { signOut, user, userProfile } = useAuth();
   const { company } = useCompany();
   const [stripeConnected, setStripeConnected] = useState(true);
 
@@ -237,6 +237,27 @@ export default function SettingsScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <ProfileSection />
+
+        <SettingsSection title="Compte utilisateur">
+          <View style={styles.userCard}>
+            <View style={styles.userHeader}>
+              <View style={styles.userIcon}>
+                <User size={20} color="#2563eb" />
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={styles.userEmail}>{user?.email}</Text>
+                <Text style={styles.userDate}>
+                  Membre depuis {userProfile?.created_at ? 
+                    new Date(userProfile.created_at).toLocaleDateString('fr-FR', { 
+                      year: 'numeric', 
+                      month: 'long' 
+                    }) : 'N/A'
+                  }
+                </Text>
+              </View>
+            </View>
+          </View>
+        </SettingsSection>
 
         <SettingsSection title="Paiements">
           <SettingsItem
@@ -484,6 +505,43 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
     lineHeight: 20,
+  },
+  userCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  userHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  userIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userEmail: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  userDate: {
+    fontSize: 13,
+    color: '#6b7280',
   },
   appInfo: {
     alignItems: 'center',

@@ -47,6 +47,28 @@ export function useCompany() {
     if (!user) return { error: new Error('User not authenticated') };
 
     try {
+      // Vérifier que l'utilisateur existe dans la table users
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .single();
+
+      if (userError && userError.code === 'PGRST116') {
+        // L'utilisateur n'existe pas dans la table users, le créer
+        const { error: insertUserError } = await supabase
+          .from('users')
+          .insert({
+            id: user.id,
+            email: user.email || '',
+          });
+
+        if (insertUserError) {
+          console.error('Error creating user profile:', insertUserError);
+          return { error: insertUserError };
+        }
+      }
+
       const { data, error } = await supabase
         .from('companies')
         .insert({
