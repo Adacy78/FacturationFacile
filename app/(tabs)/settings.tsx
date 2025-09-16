@@ -3,6 +3,8 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Switch
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Building2, CreditCard, Bell, FileText, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, User, Mail, Phone, MapPin, Download, Upload, Globe } from 'lucide-react-native';
+import { useAuth } from '@/hooks/useAuth';
+import { useCompany } from '@/hooks/useCompany';
 
 const SettingsSection = ({ title, children }: any) => (
   <View style={styles.section}>
@@ -27,15 +29,23 @@ const SettingsItem = ({ icon: Icon, title, subtitle, onPress, rightElement, icon
 );
 
 const ProfileSection = () => {
-  const [companyInfo, setCompanyInfo] = useState({
-    name: 'MonEntreprise SARL',
-    siren: '123 456 789',
-    vatNumber: 'FR 12 123456789',
-    address: '123 Rue de la Paix\n75001 Paris',
-    phone: '+33 1 23 45 67 89',
-    email: 'contact@monentreprise.fr',
-    website: 'www.monentreprise.fr',
-  });
+  const { company } = useCompany();
+
+  if (!company) {
+    return (
+      <SettingsSection title="Informations société">
+        <View style={styles.profileCard}>
+          <Text style={styles.noCompanyText}>
+            Aucune société configurée. Veuillez créer votre profil société.
+          </Text>
+          <TouchableOpacity style={styles.editButton}>
+            <User size={16} color="#2563eb" />
+            <Text style={styles.editButtonText}>Créer ma société</Text>
+          </TouchableOpacity>
+        </View>
+      </SettingsSection>
+    );
+  }
 
   return (
     <SettingsSection title="Informations société">
@@ -45,28 +55,36 @@ const ProfileSection = () => {
             <Building2 size={24} color="#2563eb" />
           </View>
           <View style={styles.companyInfo}>
-            <Text style={styles.companyName}>{companyInfo.name}</Text>
-            <Text style={styles.companySiren}>SIREN: {companyInfo.siren}</Text>
+            <Text style={styles.companyName}>{company.name}</Text>
+            <Text style={styles.companySiren}>SIREN: {company.siren}</Text>
           </View>
         </View>
 
         <View style={styles.profileDetails}>
           <View style={styles.detailItem}>
             <Mail size={16} color="#6b7280" />
-            <Text style={styles.detailText}>{companyInfo.email}</Text>
+            <Text style={styles.detailText}>{company.email}</Text>
           </View>
-          <View style={styles.detailItem}>
-            <Phone size={16} color="#6b7280" />
-            <Text style={styles.detailText}>{companyInfo.phone}</Text>
-          </View>
-          <View style={styles.detailItem}>
-            <MapPin size={16} color="#6b7280" />
-            <Text style={styles.detailText}>{companyInfo.address.replace('\n', ', ')}</Text>
-          </View>
-          <View style={styles.detailItem}>
-            <Globe size={16} color="#6b7280" />
-            <Text style={styles.detailText}>{companyInfo.website}</Text>
-          </View>
+          {company.phone && (
+            <View style={styles.detailItem}>
+              <Phone size={16} color="#6b7280" />
+              <Text style={styles.detailText}>{company.phone}</Text>
+            </View>
+          )}
+          {company.address && (
+            <View style={styles.detailItem}>
+              <MapPin size={16} color="#6b7280" />
+              <Text style={styles.detailText}>
+                {`${company.address}, ${company.city} ${company.postal_code}`}
+              </Text>
+            </View>
+          )}
+          {company.website && (
+            <View style={styles.detailItem}>
+              <Globe size={16} color="#6b7280" />
+              <Text style={styles.detailText}>{company.website}</Text>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity style={styles.editButton}>
@@ -140,6 +158,8 @@ const NotificationSettings = () => {
 };
 
 export default function SettingsScreen() {
+  const { signOut } = useAuth();
+  const { company } = useCompany();
   const [stripeConnected, setStripeConnected] = useState(true);
 
   const handleStripeConnect = () => {
@@ -192,27 +212,17 @@ export default function SettingsScreen() {
         { 
           text: 'Déconnecter', 
           style: 'destructive', 
-          onPress: () => {
-            // Ici vous pourrez ajouter la logique de déconnexion Supabase
-            // Par exemple: await supabase.auth.signOut()
-            
-            // Pour l'instant, on simule la déconnexion en redirigeant vers l'écran de connexion
-            Alert.alert(
-              'Déconnecté',
-              'Vous avez été déconnecté avec succès',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    // Redirection vers un écran de connexion (à créer)
-                    // router.replace('/login');
-                    
-                    // Pour l'instant, on reste sur l'écran actuel avec un message
-                    console.log('Utilisateur déconnecté - Redirection vers écran de connexion à implémenter');
-                  }
-                }
-              ]
-            );
+          onPress: async () => {
+            try {
+              const { error } = await signOut();
+              if (error) {
+                Alert.alert('Erreur', 'Impossible de se déconnecter');
+              } else {
+                router.replace('/auth');
+              }
+            } catch (error) {
+              Alert.alert('Erreur', 'Une erreur inattendue s\'est produite');
+            }
           }
         }
       ]
@@ -232,9 +242,9 @@ export default function SettingsScreen() {
           <SettingsItem
             icon={CreditCard}
             title="Stripe Connect"
-            subtitle={stripeConnected ? 'Compte connecté et actif' : 'Configurer les paiements'}
+            subtitle={company?.is_stripe_connected ? 'Compte connecté et actif' : 'Configurer les paiements'}
             onPress={handleStripeConnect}
-            iconColor={stripeConnected ? '#059669' : '#f59e0b'}
+            iconColor={company?.is_stripe_connected ? '#059669' : '#f59e0b'}
           />
         </SettingsSection>
 
@@ -467,6 +477,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#2563eb',
+  },
+  noCompanyText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
   },
   appInfo: {
     alignItems: 'center',
