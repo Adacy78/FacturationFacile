@@ -1,0 +1,2 @@
+[functions.stripe-account-link]
+verify_jwt = false

@@ -1,0 +1,2 @@
+[functions.stripe-account-status]
+verify_jwt = false
