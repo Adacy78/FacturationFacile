@@ -857,7 +857,6 @@ export default function SettingsScreen() {
       />
     </SafeAreaView>
   );
-}
 
 const styles = StyleSheet.create({
   container: {
