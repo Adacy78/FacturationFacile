@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, checkSupabaseConnection } from '@/lib/supabase';
 import { Database } from '@/types/database';
 
 export function useAuth() {
+  const mountedRef = useRef(true);
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<Database['public']['Tables']['users']['Row'] | null>(null);
@@ -12,20 +13,32 @@ export function useAuth() {
   const [isOnline, setIsOnline] = useState(false);
 
   useEffect(() => {
+    mountedRef.current = true;
     setMounted(true);
     
     // Vérifier la connexion Supabase
-    checkSupabaseConnection().then(setIsOnline);
+    checkSupabaseConnection().then((online) => {
+      if (mountedRef.current) {
+        setIsOnline(online);
+      }
+    });
     
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) {
+      if (mountedRef.current && mounted) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          fetchUserProfile(session.user.id);
+          fetchUserProfile(session.user.id).finally(() => {
+            if (mountedRef.current) {
+              setLoading(false);
+            }
+          });
+        } else {
+          if (mountedRef.current) {
+            setLoading(false);
+          }
         }
-        setLoading(false);
       }
     });
 
@@ -33,7 +46,7 @@ export function useAuth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) {
+      if (mountedRef.current && mounted) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
@@ -41,18 +54,18 @@ export function useAuth() {
         } else {
           setUserProfile(null);
         }
-        setLoading(false);
       }
     });
 
     return () => {
+      mountedRef.current = false;
       subscription.unsubscribe();
       setMounted(false);
     };
   }, [mounted]);
 
   const fetchUserProfile = async (userId: string) => {
-    if (!mounted) return;
+    if (!mountedRef.current || !mounted) return;
     
     try {
       const { data, error } = await supabase
@@ -66,7 +79,7 @@ export function useAuth() {
         return;
       }
 
-      if (mounted) {
+      if (mountedRef.current && mounted) {
         setUserProfile(data);
       }
     } catch (error) {
@@ -136,7 +149,7 @@ export function useAuth() {
   const signOut = async () => {
     if (!isOnline) {
       // Permettre la déconnexion locale même hors ligne
-      if (mounted) {
+      if (mountedRef.current && mounted) {
         setSession(null);
         setUser(null);
         setUserProfile(null);
@@ -145,7 +158,7 @@ export function useAuth() {
     }
 
     const { error } = await supabase.auth.signOut();
-    if (!error && mounted) {
+    if (!error && mountedRef.current && mounted) {
       setUserProfile(null);
     }
     return { error };
