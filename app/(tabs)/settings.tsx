@@ -5,6 +5,8 @@ import { router } from 'expo-router';
 import { Building2, CreditCard, Bell, FileText, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, User, Mail, Phone, MapPin, Download, Upload, Globe } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
+import { useStripe } from '@/hooks/useStripe';
+import * as WebBrowser from 'expo-web-browser';
 
 const SettingsSection = ({ title, children }: any) => (
   <View style={styles.section}>
@@ -160,23 +162,107 @@ const NotificationSettings = () => {
 export default function SettingsScreen() {
   const { signOut, user, userProfile } = useAuth();
   const { company } = useCompany();
-  const [stripeConnected, setStripeConnected] = useState(true);
+  const { loading: stripeLoading, createStripeAccount, createAccountLink, getAccountStatus, updateStripeConnectionStatus } = useStripe();
 
-  const handleStripeConnect = () => {
-    if (stripeConnected) {
+  const handleStripeConnect = async () => {
+    if (!company) {
+      Alert.alert('Erreur', 'Aucune société trouvée. Veuillez d\'abord configurer votre société.');
+      return;
+    }
+
+    if (company.is_stripe_connected && company.stripe_account_id) {
+      // Compte déjà connecté, vérifier le statut
+      try {
+        const accountStatus = await getAccountStatus(company.stripe_account_id);
+        
+        if (accountStatus.charges_enabled && accountStatus.payouts_enabled) {
+          Alert.alert(
+            'Stripe Connect',
+            'Votre compte Stripe est connecté et opérationnel.\n\n' +
+            `• Paiements: ${accountStatus.charges_enabled ? 'Activés' : 'Désactivés'}\n` +
+            `• Virements: ${accountStatus.payouts_enabled ? 'Activés' : 'Désactivés'}`
+          );
+        } else {
+          Alert.alert(
+            'Configuration incomplète',
+            'Votre compte Stripe nécessite une configuration supplémentaire.',
+            [
+              { text: 'Annuler', style: 'cancel' },
+              { 
+                text: 'Continuer la configuration', 
+                onPress: () => continueStripeOnboarding(company.stripe_account_id!)
+              }
+            ]
+          );
+        }
+      } catch (error) {
+        Alert.alert('Erreur', 'Impossible de vérifier le statut du compte Stripe');
+      }
+    } else if (company.stripe_account_id && !company.is_stripe_connected) {
+      // Compte créé mais pas encore configuré
       Alert.alert(
-        'Stripe Connect',
-        'Votre compte Stripe est connecté et opérationnel',
-        [{ text: 'OK' }]
-      );
-    } else {
-      Alert.alert(
-        'Connecter Stripe',
-        'Vous allez être redirigé vers Stripe pour configurer votre compte de paiement',
+        'Configuration Stripe',
+        'Votre compte Stripe a été créé mais n\'est pas encore configuré. Voulez-vous continuer la configuration ?',
         [
           { text: 'Annuler', style: 'cancel' },
-          { text: 'Continuer', onPress: () => console.log('Redirect to Stripe Connect') }
+          { 
+            text: 'Continuer', 
+            onPress: () => continueStripeOnboarding(company.stripe_account_id!)
+          }
         ]
+      );
+    } else {
+      // Nouveau compte à créer
+      Alert.alert(
+        'Créer un compte Stripe',
+        'Vous allez créer un compte Stripe Connect pour accepter les paiements. Cette opération est gratuite.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Créer le compte', onPress: createNewStripeAccount }
+        ]
+      );
+    }
+  };
+
+  const createNewStripeAccount = async () => {
+    try {
+      const result = await createStripeAccount();
+      
+      Alert.alert(
+        'Compte créé',
+        'Votre compte Stripe a été créé avec succès. Vous allez maintenant être redirigé pour terminer la configuration.',
+        [
+          { text: 'OK', onPress: () => continueStripeOnboarding(result.accountId) }
+        ]
+      );
+    } catch (error) {
+      Alert.alert(
+        'Erreur',
+        error instanceof Error ? error.message : 'Impossible de créer le compte Stripe'
+      );
+    }
+  };
+
+  const continueStripeOnboarding = async (accountId: string) => {
+    try {
+      const result = await createAccountLink(
+        accountId,
+        'https://your-app.com/stripe/success', // URL de retour après succès
+        'https://your-app.com/stripe/refresh'  // URL de rafraîchissement
+      );
+      
+      // Ouvrir le lien d'onboarding dans le navigateur
+      await WebBrowser.openBrowserAsync(result.url);
+      
+      // Optionnel: Vérifier le statut après que l'utilisateur revienne
+      Alert.alert(
+        'Configuration en cours',
+        'Une fois la configuration terminée sur Stripe, revenez dans l\'application pour vérifier le statut.'
+      );
+    } catch (error) {
+      Alert.alert(
+        'Erreur',
+        error instanceof Error ? error.message : 'Impossible d\'ouvrir la configuration Stripe'
       );
     }
   };
@@ -263,9 +349,26 @@ export default function SettingsScreen() {
           <SettingsItem
             icon={CreditCard}
             title="Stripe Connect"
-            subtitle={company?.is_stripe_connected ? 'Compte connecté et actif' : 'Configurer les paiements'}
+            subtitle={
+              company?.is_stripe_connected 
+                ? 'Compte connecté et actif' 
+                : company?.stripe_account_id 
+                  ? 'Configuration en cours'
+                  : 'Configurer les paiements'
+            }
             onPress={handleStripeConnect}
-            iconColor={company?.is_stripe_connected ? '#059669' : '#f59e0b'}
+            iconColor={
+              company?.is_stripe_connected 
+                ? '#059669' 
+                : company?.stripe_account_id 
+                  ? '#f59e0b'
+                  : '#6b7280'
+            }
+            rightElement={stripeLoading ? (
+              <View style={styles.loadingSpinner}>
+                <Text style={styles.loadingText}>...</Text>
+              </View>
+            ) : undefined}
           />
         </SettingsSection>
 
@@ -557,6 +660,15 @@ const styles = StyleSheet.create({
   buildInfo: {
     fontSize: 12,
     color: '#9ca3af',
+  },
+  loadingSpinner: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6b7280',
+    fontWeight: '600',
   },
   bottomSpacer: {
     height: 32,

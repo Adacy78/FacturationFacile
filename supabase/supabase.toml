@@ -1,2 +1,8 @@
 [functions.stripe-account-link]
 verify_jwt = false
+
+[functions.stripe-account-status]
+verify_jwt = false
+
+[functions.stripe-create-account]
+verify_jwt = false
