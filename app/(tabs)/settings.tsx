@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Switch, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Switch, Alert, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Building2, CreditCard, Bell, FileText, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, User, Mail, Phone, MapPin, Download, Upload, Globe } from 'lucide-react-native';
+import { Building2, CreditCard, Bell, FileText, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, User, Mail, Phone, MapPin, Download, Upload, Globe, X, Camera, AlertCircle, CheckCircle, Info } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompany } from '@/hooks/useCompany';
 import { useStripe } from '@/hooks/useStripe';
@@ -30,8 +30,363 @@ const SettingsItem = ({ icon: Icon, title, subtitle, onPress, rightElement, icon
   </TouchableOpacity>
 );
 
+const StripeConnectModal = ({ visible, onClose, onProceed, company }: any) => {
+  const isCompanyComplete = company && company.name && company.siren && company.email && 
+                           company.address && company.city && company.postal_code;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <X size={24} color="#6b7280" />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>Stripe Connect</Text>
+          <View style={styles.placeholder} />
+        </View>
+
+        <ScrollView style={styles.modalContent}>
+          <View style={styles.infoCard}>
+            <View style={styles.infoHeader}>
+              <Info size={24} color="#2563eb" />
+              <Text style={styles.infoTitle}>Avant de commencer</Text>
+            </View>
+            <Text style={styles.infoText}>
+              Pour créer votre compte Stripe Connect et accepter les paiements, 
+              vos informations de société doivent être complètes et exactes.
+            </Text>
+          </View>
+
+          <View style={styles.requirementsCard}>
+            <Text style={styles.requirementsTitle}>Informations requises :</Text>
+            
+            <View style={styles.requirementsList}>
+              <View style={styles.requirementItem}>
+                {company?.name ? (
+                  <CheckCircle size={16} color="#059669" />
+                ) : (
+                  <AlertCircle size={16} color="#dc2626" />
+                )}
+                <Text style={[styles.requirementText, !company?.name && styles.requirementMissing]}>
+                  Nom de la société
+                </Text>
+              </View>
+
+              <View style={styles.requirementItem}>
+                {company?.siren ? (
+                  <CheckCircle size={16} color="#059669" />
+                ) : (
+                  <AlertCircle size={16} color="#dc2626" />
+                )}
+                <Text style={[styles.requirementText, !company?.siren && styles.requirementMissing]}>
+                  Numéro SIREN (9 chiffres)
+                </Text>
+              </View>
+
+              <View style={styles.requirementItem}>
+                {company?.email ? (
+                  <CheckCircle size={16} color="#059669" />
+                ) : (
+                  <AlertCircle size={16} color="#dc2626" />
+                )}
+                <Text style={[styles.requirementText, !company?.email && styles.requirementMissing]}>
+                  Email de contact
+                </Text>
+              </View>
+
+              <View style={styles.requirementItem}>
+                {company?.address && company?.city && company?.postal_code ? (
+                  <CheckCircle size={16} color="#059669" />
+                ) : (
+                  <AlertCircle size={16} color="#dc2626" />
+                )}
+                <Text style={[styles.requirementText, (!company?.address || !company?.city || !company?.postal_code) && styles.requirementMissing]}>
+                  Adresse complète
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {!isCompanyComplete && (
+            <View style={styles.warningCard}>
+              <AlertCircle size={20} color="#f59e0b" />
+              <Text style={styles.warningText}>
+                Certaines informations sont manquantes. Veuillez compléter votre profil société avant de continuer.
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.benefitsCard}>
+            <Text style={styles.benefitsTitle}>Avec Stripe Connect, vous pourrez :</Text>
+            <View style={styles.benefitsList}>
+              <Text style={styles.benefitItem}>• Accepter les paiements par carte</Text>
+              <Text style={styles.benefitItem}>• Recevoir les virements automatiquement</Text>
+              <Text style={styles.benefitItem}>• Suivre vos transactions en temps réel</Text>
+              <Text style={styles.benefitItem}>• Gérer les remboursements facilement</Text>
+            </View>
+          </View>
+        </ScrollView>
+
+        <View style={styles.modalFooter}>
+          <TouchableOpacity 
+            style={[styles.proceedButton, !isCompanyComplete && styles.proceedButtonDisabled]}
+            onPress={isCompanyComplete ? onProceed : undefined}
+            disabled={!isCompanyComplete}
+          >
+            <Text style={[styles.proceedButtonText, !isCompanyComplete && styles.proceedButtonTextDisabled]}>
+              {isCompanyComplete ? 'Créer le compte Stripe' : 'Compléter les informations'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+};
+
+const EditCompanyModal = ({ visible, onClose, onSave, company }: any) => {
+  const [formData, setFormData] = useState({
+    name: company?.name || '',
+    siren: company?.siren || '',
+    vatNumber: company?.vat_number || '',
+    email: company?.email || '',
+    phone: company?.phone || '',
+    address: company?.address || '',
+    city: company?.city || '',
+    postalCode: company?.postal_code || '',
+    country: company?.country || 'FR',
+    website: company?.website || '',
+    businessType: company?.business_type || '',
+    legalForm: company?.legal_form || '',
+  });
+
+  const [logoUri, setLogoUri] = useState<string | null>(null);
+
+  const handleSave = () => {
+    if (!formData.name || !formData.siren || !formData.email || !formData.address || !formData.city || !formData.postalCode) {
+      Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    onSave({
+      name: formData.name,
+      siren: formData.siren,
+      vat_number: formData.vatNumber,
+      email: formData.email,
+      phone: formData.phone,
+      address: formData.address,
+      city: formData.city,
+      postal_code: formData.postalCode,
+      country: formData.country,
+      website: formData.website,
+      business_type: formData.businessType,
+      legal_form: formData.legalForm,
+    });
+  };
+
+  const handleSelectLogo = () => {
+    Alert.alert(
+      'Logo de société',
+      'Sélectionner une source pour votre logo',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Galerie', onPress: () => console.log('Select from gallery') },
+        { text: 'Appareil photo', onPress: () => console.log('Take photo') },
+      ]
+    );
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <X size={24} color="#6b7280" />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>Modifier la société</Text>
+          <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
+            <Text style={styles.saveButtonText}>Enregistrer</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.modalContent}>
+          <View style={styles.formSection}>
+            <Text style={styles.sectionTitle}>Logo de société</Text>
+            <TouchableOpacity style={styles.logoContainer} onPress={handleSelectLogo}>
+              {logoUri ? (
+                <Image source={{ uri: logoUri }} style={styles.logoImage} />
+              ) : (
+                <View style={styles.logoPlaceholder}>
+                  <Camera size={32} color="#6b7280" />
+                  <Text style={styles.logoPlaceholderText}>Ajouter un logo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.formSection}>
+            <Text style={styles.sectionTitle}>Informations générales</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Nom de la société *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.name}
+                onChangeText={(text) => setFormData({...formData, name: text})}
+                placeholder="Ex: ACME Corporation"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>SIREN *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.siren}
+                onChangeText={(text) => setFormData({...formData, siren: text})}
+                placeholder="123 456 789"
+                maxLength={11}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>N° TVA intracommunautaire</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.vatNumber}
+                onChangeText={(text) => setFormData({...formData, vatNumber: text})}
+                placeholder="FR 12 123456789"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Forme juridique</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.legalForm}
+                onChangeText={(text) => setFormData({...formData, legalForm: text})}
+                placeholder="SARL, SAS, EURL..."
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Secteur d'activité</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.businessType}
+                onChangeText={(text) => setFormData({...formData, businessType: text})}
+                placeholder="Services informatiques, Commerce..."
+              />
+            </View>
+          </View>
+
+          <View style={styles.formSection}>
+            <Text style={styles.sectionTitle}>Contact</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.email}
+                onChangeText={(text) => setFormData({...formData, email: text})}
+                placeholder="contact@acme.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Téléphone</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.phone}
+                onChangeText={(text) => setFormData({...formData, phone: text})}
+                placeholder="+33 1 23 45 67 89"
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Site web</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.website}
+                onChangeText={(text) => setFormData({...formData, website: text})}
+                placeholder="https://www.acme.com"
+                keyboardType="url"
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
+
+          <View style={styles.formSection}>
+            <Text style={styles.sectionTitle}>Adresse</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Adresse *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.address}
+                onChangeText={(text) => setFormData({...formData, address: text})}
+                placeholder="123 Rue de la Paix"
+              />
+            </View>
+
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Ville *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.city}
+                  onChangeText={(text) => setFormData({...formData, city: text})}
+                  placeholder="Paris"
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Code postal *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={formData.postalCode}
+                  onChangeText={(text) => setFormData({...formData, postalCode: text})}
+                  placeholder="75001"
+                  maxLength={5}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Pays</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.country}
+                onChangeText={(text) => setFormData({...formData, country: text})}
+                placeholder="FR"
+                maxLength={2}
+              />
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+};
+
 const ProfileSection = () => {
-  const { company } = useCompany();
+  const { company, updateCompany } = useCompany();
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  const handleUpdateCompany = async (updatedData: any) => {
+    try {
+      const { error } = await updateCompany(updatedData);
+      if (error) {
+        Alert.alert('Erreur', 'Impossible de mettre à jour la société');
+      } else {
+        Alert.alert('Succès', 'Informations mises à jour avec succès');
+        setShowEditModal(false);
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Une erreur inattendue s\'est produite');
+    }
+  };
 
   if (!company) {
     return (
@@ -40,11 +395,21 @@ const ProfileSection = () => {
           <Text style={styles.noCompanyText}>
             Aucune société configurée. Veuillez créer votre profil société.
           </Text>
-          <TouchableOpacity style={styles.editButton}>
+          <TouchableOpacity 
+            style={styles.editButton}
+            onPress={() => setShowEditModal(true)}
+          >
             <User size={16} color="#2563eb" />
             <Text style={styles.editButtonText}>Créer ma société</Text>
           </TouchableOpacity>
         </View>
+        
+        <EditCompanyModal
+          visible={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          onSave={handleUpdateCompany}
+          company={company}
+        />
       </SettingsSection>
     );
   }
@@ -89,11 +454,21 @@ const ProfileSection = () => {
           )}
         </View>
 
-        <TouchableOpacity style={styles.editButton}>
+        <TouchableOpacity 
+          style={styles.editButton}
+          onPress={() => setShowEditModal(true)}
+        >
           <User size={16} color="#2563eb" />
           <Text style={styles.editButtonText}>Modifier les informations</Text>
         </TouchableOpacity>
       </View>
+      
+      <EditCompanyModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSave={handleUpdateCompany}
+        company={company}
+      />
     </SettingsSection>
   );
 };
@@ -163,6 +538,7 @@ export default function SettingsScreen() {
   const { signOut, user, userProfile } = useAuth();
   const { company } = useCompany();
   const { loading: stripeLoading, createStripeAccount, createAccountLink, getAccountStatus, updateStripeConnectionStatus } = useStripe();
+  const [showStripeModal, setShowStripeModal] = useState(false);
 
   const handleStripeConnect = async () => {
     if (!company) {
@@ -200,41 +576,20 @@ export default function SettingsScreen() {
       }
     } else if (company.stripe_account_id && !company.is_stripe_connected) {
       // Compte créé mais pas encore configuré
-      Alert.alert(
-        'Configuration Stripe',
-        'Votre compte Stripe a été créé mais n\'est pas encore configuré. Voulez-vous continuer la configuration ?',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          { 
-            text: 'Continuer', 
-            onPress: () => continueStripeOnboarding(company.stripe_account_id!)
-          }
-        ]
-      );
+      continueStripeOnboarding(company.stripe_account_id!);
     } else {
       // Nouveau compte à créer
-      Alert.alert(
-        'Créer un compte Stripe',
-        'Vous allez créer un compte Stripe Connect pour accepter les paiements. Cette opération est gratuite.',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Créer le compte', onPress: createNewStripeAccount }
-        ]
-      );
+      setShowStripeModal(true);
     }
   };
 
   const createNewStripeAccount = async () => {
+    setShowStripeModal(false);
     try {
       const result = await createStripeAccount();
       
-      Alert.alert(
-        'Compte créé',
-        'Votre compte Stripe a été créé avec succès. Vous allez maintenant être redirigé pour terminer la configuration.',
-        [
-          { text: 'OK', onPress: () => continueStripeOnboarding(result.accountId) }
-        ]
-      );
+      // Rediriger directement vers l'onboarding
+      continueStripeOnboarding(result.accountId);
     } catch (error) {
       Alert.alert(
         'Erreur',
@@ -459,6 +814,13 @@ export default function SettingsScreen() {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      <StripeConnectModal
+        visible={showStripeModal}
+        onClose={() => setShowStripeModal(false)}
+        onProceed={createNewStripeAccount}
+        company={company}
+      />
     </SafeAreaView>
   );
 }
@@ -672,5 +1034,211 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 32,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  placeholder: {
+    width: 32,
+  },
+  saveButton: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  saveButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  infoCard: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e40af',
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#1e40af',
+    lineHeight: 20,
+  },
+  requirementsCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  requirementsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  requirementsList: {
+    gap: 8,
+  },
+  requirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  requirementText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  requirementMissing: {
+    color: '#dc2626',
+  },
+  warningCard: {
+    backgroundColor: '#fffbeb',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  warningText: {
+    fontSize: 14,
+    color: '#92400e',
+    lineHeight: 20,
+    flex: 1,
+  },
+  benefitsCard: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  benefitsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#166534',
+    marginBottom: 12,
+  },
+  benefitsList: {
+    gap: 6,
+  },
+  benefitItem: {
+    fontSize: 14,
+    color: '#166534',
+    lineHeight: 20,
+  },
+  modalFooter: {
+    padding: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  proceedButton: {
+    backgroundColor: '#2563eb',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  proceedButtonDisabled: {
+    backgroundColor: '#e5e7eb',
+  },
+  proceedButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  proceedButtonTextDisabled: {
+    color: '#9ca3af',
+  },
+  formSection: {
+    marginTop: 24,
+  },
+  inputGroup: {
+    marginBottom: 16,
+    flex: 1,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  textInput: {
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#111827',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+  },
+  logoPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logoPlaceholderText: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
   },
 });
