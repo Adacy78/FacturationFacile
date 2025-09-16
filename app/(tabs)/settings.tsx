@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Buildimport { Building2, CreditCard, Bell, FileText, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, User, Mail, Phone, MapPin, Download, Upload, Globe, X, Camera, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Info } from 'lucide-react-native'Company } from '@/hooks/useCompany';
+import { Building2, CreditCard, Bell, FileText, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, User, Mail, Phone, MapPin, Download, Upload, Globe, X, Camera, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Info } from 'lucide-react-native';
+import { useCompany } from '@/hooks/useCompany';
+import { useAuth } from '@/hooks/useAuth';
 import { useStripe } from '@/hooks/useStripe';
 import * as WebBrowser from 'expo-web-browser';
 
