@@ -71,6 +71,33 @@ export function useAuth() {
     });
     
     // Le trigger handle_new_user() créera automatiquement l'entrée dans la table users
+    // Si le trigger échoue, on essaie de créer l'utilisateur manuellement
+    if (data.user && !error) {
+      // Attendre un peu pour laisser le trigger s'exécuter
+      setTimeout(async () => {
+        try {
+          // Vérifier si l'utilisateur a été créé par le trigger
+          const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', data.user!.id)
+            .single();
+
+          // Si l'utilisateur n'existe pas, le créer manuellement (fallback)
+          if (!existingUser) {
+            await supabase
+              .from('users')
+              .insert({
+                id: data.user!.id,
+                email: data.user!.email || email,
+              });
+          }
+        } catch (fallbackError) {
+          console.log('Fallback user creation handled by trigger or already exists');
+        }
+      }, 1000);
+    }
+    
     return { data, error };
   };
 

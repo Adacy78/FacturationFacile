@@ -47,25 +47,47 @@ export function useCompany() {
     if (!user) return { error: new Error('User not authenticated') };
 
     try {
-      // Vérifier que l'utilisateur existe dans la table users
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', user.id)
-        .single();
+      // Vérifier que l'utilisateur existe dans la table users (avec retry)
+      let userData = null;
+      let retryCount = 0;
+      const maxRetries = 3;
 
-      if (userError && userError.code === 'PGRST116') {
-        // L'utilisateur n'existe pas dans la table users, le créer
-        const { error: insertUserError } = await supabase
+      while (!userData && retryCount < maxRetries) {
+        const { data: userCheck, error: userError } = await supabase
           .from('users')
-          .insert({
-            id: user.id,
-            email: user.email || '',
-          });
+          .select('id')
+          .eq('id', user.id)
+          .single();
 
-        if (insertUserError) {
-          console.error('Error creating user profile:', insertUserError);
-          return { error: insertUserError };
+        if (userCheck) {
+          userData = userCheck;
+          break;
+        }
+
+        if (userError && userError.code === 'PGRST116') {
+          // L'utilisateur n'existe pas encore, attendre un peu et réessayer
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+
+          // Dernier essai : créer l'utilisateur manuellement
+          const { error: insertUserError } = await supabase
+            .from('users')
+            .insert({
+              id: user.id,
+              email: user.email || '',
+            });
+
+          if (insertUserError) {
+            console.error('Error creating user profile:', insertUserError);
+            return { error: insertUserError };
+          }
+          break;
+        } else if (userError) {
+          console.error('Error checking user:', userError);
+          return { error: userError };
         }
       }
 
